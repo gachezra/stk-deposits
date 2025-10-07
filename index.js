@@ -24,6 +24,10 @@ app.use(express.json());
 app.use(cors());
 app.use(limiter);
 
+app.get("/", (req, res) => {
+  res.send("AirPesa Biih!!!");
+});
+
 // Route handlers
 app.use("/api/mpesa", lipaNaMpesaRoutes);
 
