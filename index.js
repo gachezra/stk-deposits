@@ -1,31 +1,33 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
+import express from "express";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import "dotenv/config";
+
+import lipaNaMpesaRoutes from "./routes/routes.lipanampesa.js";
+
 const app = express();
-const port = process.env.PORT || 3000;
 
-// Connect to MongoDB
-// mongoose.connect(process.env.MONGO_URI, { 
-//   useNewUrlParser: true,
-//   useUnifiedTopology: true
-// })
-//   .then(() => console.log('MongoDB connected'))
-//   .catch((err) => console.error('MongoDB connection error:', err));
+// Rate limiter
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: {
+    status: 429,
+    message: "Too many requests, chill out for a bit 🚫",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
+// Apply middleware
 app.use(express.json());
+app.use(cors());
+app.use(limiter);
 
-// Importing route modules
-const stkPushRoutes = require('./routes/stkPush');
-const transactionRoutes = require('./routes/transaction');
-const cashRoutes = require('./routes/cash');
-const callbackRoutes = require('./routes/callback');
+// Route handlers
+app.use("/api/mpesa", lipaNaMpesaRoutes);
 
-// Mount routes
-app.use('/api/stkpush', stkPushRoutes);
-app.use('/api/check-transaction', transactionRoutes);
-app.use('/api/send-cash', cashRoutes);
-app.use('/api/callback', callbackRoutes);
-
+const port = process.env.PORT;
 app.listen(port, () => {
-  console.log(`Express server running on port ${port}`);
+  console.log(`App listening on port ${port}`);
 });
