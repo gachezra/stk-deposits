@@ -32,7 +32,7 @@ export const initiateSTKPush = async (req, res) => {
     TransactionType: "CustomerPayBillOnline",
     Amount: amount,
     PartyA: phone,
-    PartyB: process.env.BUSINESS_SHORT_CODE,
+    PartyB: process.env.TILL_NO,
     PhoneNumber: phone,
     CallBackURL: callbackUrl,
     AccountReference: "Account deposit",
