@@ -1,9 +1,5 @@
 # AirPesa Stk Service
 
-A comprehensive README for the stk-deposits project.
-
----
-
 ## 🚀 About This Project
 
 `AirPesa Stk Service` is a Node.js application for handling deposits. Based on the project structure, it appears to be an API with routes, controllers, and middlewares.
