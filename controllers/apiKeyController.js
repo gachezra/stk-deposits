@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 const db = getFirestore();
 
 export const generateApiKey = async (req, res) => {
-  const { userId, expiresInDays = 365 } = req.body; // Expect userId from the admin's request
+  const { userId, expiresInDays } = req.body; // Expect userId from the admin's request
 
   if (!userId) {
     return res.status(400).json({ message: 'User ID is required to generate an API key.' });
