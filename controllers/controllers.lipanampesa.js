@@ -1,79 +1,58 @@
+
 import axios from 'axios';
 import 'dotenv/config';
 import { getTimestamp } from '../utils/utils.timestamp.js';
+import { getFirestore } from 'firebase-admin/firestore';
+
+const db = getFirestore();
 
 const generatePassword = (shortCode, passkey, timestamp) => {
   return Buffer.from(`${shortCode}${passkey}${timestamp}`).toString('base64');
 };
 
 export const initiateSTKPush = async (req, res) => {
-  const { BUSINESS_SHORT_CODE, PASS_KEY, CALLBACK_URL } = process.env;
+  const { PASS_KEY, CALLBACK_URL } = process.env;
+  const { amount, phoneNumber, accountId } = req.body;
+  const { userId } = req;
 
-  const { 
-    PAYBILL_NO,
-    TILL_NO,
-    ACCOUNT_NO
-  } = req.userConfig;
-
-  const { 
-    amount, 
-    phone, 
-    Order_ID,
-    transactionType 
-  } = req.body;
-
-  if (!transactionType || (transactionType !== 'Paybill' && transactionType !== 'BuyGoods')) {
-    return res.status(400).json({ message: "Invalid or missing 'transactionType'. Must be 'Paybill' or 'BuyGoods'." });
-  }
-  if (!amount || !phone) {
-    return res.status(400).json({ message: "'amount' and 'phone' are required fields." });
-  }
-
-  const safaricomAccessToken = req.safaricom_access_token;
-  const timestamp = getTimestamp();
-  const password = generatePassword(BUSINESS_SHORT_CODE, PASS_KEY, timestamp);
-  
-  const accountReference = Order_ID || ACCOUNT_NO || 'N/A';
-  const transactionDesc = `Payment for ${accountReference}`;
-  
-  const callbackUrl = `${CALLBACK_URL}/api/transactions/mpesaCallback/${accountReference}`;
-
-  let requestData;
-
-  if (transactionType === 'Paybill') {
-    requestData = {
-      BusinessShortCode: BUSINESS_SHORT_CODE,
-      Password: password,
-      Timestamp: timestamp,
-      TransactionType: 'CustomerPayBillOnline',
-      Amount: amount,
-      PartyA: phone,
-      PartyB: PAYBILL_NO || BUSINESS_SHORT_CODE,
-      PhoneNumber: phone,
-      CallBackURL: callbackUrl,
-      AccountReference: accountReference,
-      TransactionDesc: transactionDesc,
-    };
-  } else {
-    if (!TILL_NO) {
-        return res.status(400).json({ message: "'TILL_NO' is not configured for this API key to perform a 'BuyGoods' transaction." });
-    }
-    requestData = {
-      BusinessShortCode: BUSINESS_SHORT_CODE,
-      Password: password,
-      Timestamp: timestamp,
-      TransactionType: 'CustomerBuyGoodsOnline',
-      Amount: amount,
-      PartyA: phone,
-      PartyB: TILL_NO,
-      PhoneNumber: phone,
-      CallBackURL: callbackUrl,
-      AccountReference: accountReference,
-      TransactionDesc: transactionDesc,
-    };
+  if (!amount || !phoneNumber || !accountId) {
+    return res.status(400).json({ message: 'Missing required fields: amount, phoneNumber, and accountId' });
   }
 
   try {
+    const accountRef = db.collection('users').doc(userId).collection('accounts').doc(accountId);
+    const accountDoc = await accountRef.get();
+
+    if (!accountDoc.exists) {
+      return res.status(404).json({ message: 'Account not found' });
+    }
+
+    const accountData = accountDoc.data();
+    const { businessShortCode, tillNumber, paymentMethod, accountNumber } = accountData;
+
+    const safaricomAccessToken = req.safaricom_access_token;
+    const timestamp = getTimestamp();
+    const password = generatePassword(businessShortCode, PASS_KEY, timestamp);
+
+    const transactionType = paymentMethod === 'paybill' ? 'CustomerPayBillOnline' : 'CustomerBuyGoodsOnline';
+    const partyB = paymentMethod === 'paybill' ? businessShortCode : tillNumber;
+
+    const callbackUrlWithUserId = `${CALLBACK_URL}/api/transactions/mpesaCallback/${userId}`;
+
+    const requestData = {
+      BusinessShortCode: businessShortCode,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: transactionType,
+      Amount: amount,
+      PartyA: phoneNumber,
+      PartyB: partyB,
+      PhoneNumber: phoneNumber,
+      CallBackURL: callbackUrlWithUserId,
+      AccountReference: accountNumber || 'N/A',
+      TransactionDesc: `Payment for ${accountNumber || 'N/A'}`,
+    };
+
     const response = await axios.post(
       'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
       requestData,
@@ -83,6 +62,7 @@ export const initiateSTKPush = async (req, res) => {
         },
       }
     );
+
     res.status(200).json(response.data);
   } catch (error) {
     const errorMessage = error.response ? error.response.data : error.message;
@@ -91,5 +71,44 @@ export const initiateSTKPush = async (req, res) => {
       message: 'Error with the STK push.',
       error: errorMessage,
     });
+  }
+};
+
+export const mpesaCallback = async (req, res) => {
+  const { userId } = req.params;
+  const { Body: { stkCallback } } = req.body;
+
+  if (!stkCallback) {
+    return res.status(400).json({ message: 'Invalid callback data' });
+  }
+
+  const { MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc, CallbackMetadata } = stkCallback;
+
+  const transactionRef = db.collection('users').doc(userId).collection('transactions').doc(CheckoutRequestID);
+
+  try {
+    await transactionRef.set({
+      merchantRequestID: MerchantRequestID,
+      checkoutRequestID: CheckoutRequestID,
+      resultCode: ResultCode,
+      resultDesc: ResultDesc,
+      callbackMetadata: CallbackMetadata,
+      createdAt: new Date(),
+    });
+
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      if (userData.webhookUrl) {
+        await axios.post(userData.webhookUrl, stkCallback);
+      }
+    }
+
+    res.status(200).json({ message: 'Callback received and processed' });
+  } catch (error) {
+    console.error('Error processing M-Pesa callback:', error);
+    res.status(500).json({ message: 'Error processing callback' });
   }
 };

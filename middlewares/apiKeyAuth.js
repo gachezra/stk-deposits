@@ -29,7 +29,6 @@ export const apiKeyAuth = async (req, res, next) => {
       return res.status(403).json({ message: 'Forbidden: API key has expired.' });
     }
 
-    // API key is valid, now fetch the user's config
     const userRef = db.collection('users').doc(keyData.userId);
     const userDoc = await userRef.get();
 
@@ -37,9 +36,9 @@ export const apiKeyAuth = async (req, res, next) => {
       return res.status(404).json({ message: 'User configuration not found for this API key.' });
     }
 
-    req.userConfig = userDoc.data(); // Attach user config to the request
+    req.userConfig = userDoc.data();
+    req.userId = keyData.userId; // Attach userId to the request
 
-    // Update usage stats (fire-and-forget)
     apiKeyRef.update({ usageCount: (keyData.usageCount || 0) + 1 });
 
     next();

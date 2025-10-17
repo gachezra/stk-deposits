@@ -6,6 +6,7 @@ import "dotenv/config";
 
 import lipaNaMpesaRoutes from "./routes/routes.lipanampesa.js";
 import apiKeyRoutes from './routes/apiKeyRoutes.js';
+import transactionRoutes from './routes/lipanampesa.js';
 import './firebase.js'; // Initialize Firebase
 
 const app = express();
@@ -40,6 +41,7 @@ app.get("/", (req, res) => {
 // Route handlers
 app.use("/api/auth", apiKeyRoutes);
 app.use("/api/mpesa", lipaNaMpesaRoutes);
+app.use('/api/transactions', transactionRoutes);
 
 const port = process.env.PORT || 8000;
 app.listen(port, () => {
