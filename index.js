@@ -29,8 +29,8 @@ const app = express();
 // });
 
 // // Apply middleware
-// app.use(cors(corsOptions));
-// app.use(express.json());
+app.use(cors);
+app.use(express.json());
 // app.use(limiter);
 
 app.get("/", (req, res) => {

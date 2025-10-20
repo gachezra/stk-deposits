@@ -1,21 +1,26 @@
-
-import { getFirestore } from 'firebase-admin/firestore';
-import { v4 as uuidv4 } from 'uuid';
+import { getFirestore } from "firebase-admin/firestore";
+import { v4 as uuidv4 } from "uuid";
 
 const db = getFirestore();
 
 export const generateApiKey = async (req, res) => {
-  const { userId, expiresInDays } = req.body; // Expect userId from the admin's request
+  const { userId, expiresInDays } = req.body;
+
+  console.log("Incoming request: ", req.body);
 
   if (!userId) {
-    return res.status(400).json({ message: 'User ID is required to generate an API key.' });
+    return res
+      .status(400)
+      .json({ message: "User ID is required to generate an API key." });
   }
 
   const apiKey = uuidv4();
-  const apiKeyRef = db.collection('apiKeys').doc(apiKey);
+  const apiKeyRef = db.collection("apiKeys").doc(apiKey);
 
   const createdAt = new Date();
-  const expiresAt = new Date(createdAt.getTime() + expiresInDays * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(
+    createdAt.getTime() + expiresInDays * 24 * 60 * 60 * 1000
+  );
 
   try {
     await apiKeyRef.set({
@@ -26,13 +31,13 @@ export const generateApiKey = async (req, res) => {
       usageCount: 0,
     });
 
-    res.status(201).json({ 
-      apiKey, 
-      userId, 
-      expiresAt: expiresAt.toISOString() 
+    res.status(201).json({
+      apiKey,
+      userId,
+      expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {
-    console.error('Error generating API key:', error);
-    res.status(500).json({ message: 'Could not generate API key.' });
+    console.error("Error generating API key:", error);
+    res.status(500).json({ message: "Could not generate API key." });
   }
 };
