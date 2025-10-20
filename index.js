@@ -29,7 +29,7 @@ const app = express();
 // });
 
 // // Apply middleware
-app.use(cors);
+app.use(cors());
 app.use(express.json());
 // app.use(limiter);
 
