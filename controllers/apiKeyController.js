@@ -1,39 +1,46 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { v4 as uuidv4 } from "uuid";
+import * as crypto from "crypto";
 
 const db = getFirestore();
+const secret = process.env.KEY_GENERATION_SECRET;
+
+if (!secret) {
+  throw new Error("API_KEY_SECRET is not set in environment variables.");
+}
 
 export const generateApiKey = async (req, res) => {
   const { userId, expiresInDays } = req.body;
 
-  console.log("Incoming request: ", req.body);
-
   if (!userId) {
-    return res
-      .status(400)
-      .json({ message: "User ID is required to generate an API key." });
+    return res.status(400).json({ message: "User ID is required." });
   }
 
-  const apiKey = uuidv4();
-  const apiKeyRef = db.collection("apiKeys").doc(apiKey);
-
-  const createdAt = new Date();
-  const expiresAt = new Date(
-    createdAt.getTime() + expiresInDays * 24 * 60 * 60 * 1000
-  );
-
   try {
-    await apiKeyRef.set({
-      userId, // The ID of the user for whom the key is generated
-      createdAt,
-      expiresAt,
-      isActive: true,
-      usageCount: 0,
+    const userRef = db.collection("users").doc(userId);
+
+    const salt = uuidv4();
+    const payload = `${userId}.${salt}`;
+
+    const signature = crypto
+      .createHmac("sha256", secret)
+      .update(payload)
+      .digest("hex");
+
+    const finalApiKey = `${Buffer.from(payload).toString(
+      "base64"
+    )}.${signature}`;
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+    await userRef.update({
+      apiKeySalt: salt,
+      apiKeyExpiry: expiresAt,
     });
 
     res.status(201).json({
-      apiKey,
-      userId,
+      apiKey: finalApiKey,
       expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {
