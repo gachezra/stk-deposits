@@ -2,10 +2,12 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as crypto from "crypto";
 
 const db = getFirestore();
-const secret = process.env.API_KEY_SECRET;
+const secret = process.env.KEY_GENERATION_SECRET;
 
 export const apiKeyAuth = async (req, res, next) => {
   const apiKey = req.headers["x-api-key"];
+
+  console.log("Header: ", apiKey);
 
   if (!apiKey) {
     return res

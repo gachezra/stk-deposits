@@ -20,32 +20,71 @@ export const initiateSTKPush = async (req, res) => {
     });
   }
 
-  try {
-    const accountRef = db
-      .collection("users")
-      .doc(userId)
-      .collection("accounts")
-      .doc(accountId);
-    const accountDoc = await accountRef.get();
+  console.log("Deets: ", { userId, amount, phoneNumber, accountId });
 
-    if (!accountDoc.exists) {
-      return res.status(404).json({ message: "Account not found" });
+  try {
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const accountData = accountDoc.data();
-    const { businessShortCode, tillNumber, paymentMethod, accountNumber } =
-      accountData;
+    const userData = userDoc.data();
+    const accountData = userData.accounts?.find((acc) => acc.id === accountId);
+
+    console.log("User deets: ", { userData });
+
+    if (!accountData) {
+      return res
+        .status(404)
+        .json({ message: "Account not found with the provided ID" });
+    }
+
+    let transactionType = "";
+    let partyB = "";
+    let accountReference = "";
+
+    if (accountData.type === "till") {
+      console.log("Account type is 'till'. Preparing 'Buy Goods' transaction.");
+      if (!accountData.tillNumber) {
+        return res.status(400).json({
+          message: "Account is type 'till' but is missing a tillNumber.",
+        });
+      }
+
+      transactionType = "CustomerBuyGoodsOnline";
+      partyB = accountData.tillNumber;
+      accountReference = accountData.name || "Till Payment";
+    } else if (accountData.type === "business") {
+      console.log(
+        "Account type is 'business'. Preparing 'Paybill' transaction."
+      );
+      if (!accountData.businessShortCode) {
+        return res.status(400).json({
+          message:
+            "Account is type 'business' but is missing a businessShortCode.",
+        });
+      }
+      if (!accountData.accountNumber) {
+        return res.status(400).json({
+          message:
+            "Account is type 'business' but is missing an accountNumber for the reference.",
+        });
+      }
+
+      transactionType = "CustomerPayBillOnline";
+      partyB = accountData.businessShortCode;
+      accountReference = accountData.accountNumber;
+    } else {
+      return res
+        .status(400)
+        .json({ message: `Unsupported account type: '${accountData.type}'` });
+    }
 
     const safaricomAccessToken = req.access_token;
     const timestamp = getTimestamp();
-    const password = generatePassword(businessShortCode, PASS_KEY, timestamp);
-
-    const transactionType =
-      paymentMethod === "paybill"
-        ? "CustomerPayBillOnline"
-        : "CustomerBuyGoodsOnline";
-    const partyB = paymentMethod === "paybill" ? businessShortCode : tillNumber;
-
+    const password = generatePassword(BUSINESS_SHORT_CODE, PASS_KEY, timestamp);
     const callbackUrlWithUserId = `${CALLBACK_URL}/api/transactions/mpesaCallback/${userId}`;
 
     const requestData = {
@@ -58,8 +97,8 @@ export const initiateSTKPush = async (req, res) => {
       PartyB: partyB,
       PhoneNumber: phoneNumber,
       CallBackURL: callbackUrlWithUserId,
-      AccountReference: accountNumber || "N/A",
-      TransactionDesc: `Payment for ${accountNumber || "N/A"}`,
+      AccountReference: accountReference,
+      TransactionDesc: `Payment for ${accountData.name || accountReference}`,
     };
 
     const response = await axios.post(
@@ -88,6 +127,8 @@ export const mpesaCallback = async (req, res) => {
   const {
     Body: { stkCallback },
   } = req.body;
+
+  console.log("Callback deets: ", Body);
 
   if (!stkCallback) {
     return res.status(400).json({ message: "Invalid callback data" });

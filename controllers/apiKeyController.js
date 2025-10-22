@@ -12,6 +12,8 @@ if (!secret) {
 export const generateApiKey = async (req, res) => {
   const { userId, expiresInDays } = req.body;
 
+  console.log("Deets: ", req.body);
+
   if (!userId) {
     return res.status(400).json({ message: "User ID is required." });
   }
@@ -34,10 +36,15 @@ export const generateApiKey = async (req, res) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
-    await userRef.update({
-      apiKeySalt: salt,
-      apiKeyExpiry: expiresAt,
-    });
+    // FIX: Use .set() with { merge: true } to create the document if it doesn't exist,
+    // or update it if it does. This prevents the "NOT_FOUND" error.
+    await userRef.set(
+      {
+        apiKeySalt: salt,
+        apiKeyExpiry: expiresAt,
+      },
+      { merge: true }
+    );
 
     res.status(201).json({
       apiKey: finalApiKey,
