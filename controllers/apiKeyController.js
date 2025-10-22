@@ -12,8 +12,6 @@ if (!secret) {
 export const generateApiKey = async (req, res) => {
   const { userId, expiresInDays } = req.body;
 
-  console.log("Deets: ", req.body);
-
   if (!userId) {
     return res.status(400).json({ message: "User ID is required." });
   }

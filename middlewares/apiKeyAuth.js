@@ -7,8 +7,6 @@ const secret = process.env.KEY_GENERATION_SECRET;
 export const apiKeyAuth = async (req, res, next) => {
   const apiKey = req.headers["x-api-key"];
 
-  console.log("Header: ", apiKey);
-
   if (!apiKey) {
     return res
       .status(401)

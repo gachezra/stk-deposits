@@ -20,8 +20,6 @@ export const initiateSTKPush = async (req, res) => {
     });
   }
 
-  console.log("Deets: ", { userId, amount, phoneNumber, accountId });
-
   try {
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
@@ -32,8 +30,6 @@ export const initiateSTKPush = async (req, res) => {
 
     const userData = userDoc.data();
     const accountData = userData.accounts?.find((acc) => acc.id === accountId);
-
-    console.log("User deets: ", { userData });
 
     if (!accountData) {
       return res
@@ -176,7 +172,7 @@ export const mpesaCallback = async (req, res) => {
 };
 
 export const initiatePayment = async (req, res) => {
-  const { PASS_KEY, CALLBACK_URL, BUSINESS_SHORT_CODE } = process.env;
+  const { PASS_KEY, CALLBACK_URL, BUSINESS_SHORT_CODE, TILL_NO } = process.env;
   const { amount, phoneNumber } = req.body;
 
   if (!amount || !phoneNumber) {
@@ -197,7 +193,7 @@ export const initiatePayment = async (req, res) => {
       TransactionType: "CustomerPayBillOnline",
       Amount: amount,
       PartyA: phoneNumber,
-      PartyB: BUSINESS_SHORT_CODE,
+      PartyB: TILL_NO,
       PhoneNumber: phoneNumber,
       CallBackURL: `${CALLBACK_URL}/api/transactions/paymentCallback`,
       AccountReference: "TestPayment",
